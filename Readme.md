@@ -1,0 +1,2 @@
+# This repo contains aicontest.dev agent
+*The code here is not original. First version is just an example-client from official repo https://github.com/bminaiev/aicontest.dev/tree/master/example-client with minor adjustments*
