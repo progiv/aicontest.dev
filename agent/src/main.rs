@@ -2,12 +2,14 @@ use std::env;
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 
 use clap::Parser;
-use game_common::{game_state::GameState, player_move::PlayerMove};
+use game_common::game_state::GameState;
 use tokio::net::TcpStream;
 
 mod connection;
+mod strategy;
 
 use crate::connection::Connection;
+use crate::strategy::best_move;
 use anyhow::Result;
 
 #[derive(Parser)]
@@ -19,21 +21,6 @@ pub struct Args {
 }
 
 const MY_LOGIN_PREFIX: &str = "progiv-rust-";
-
-fn best_move(game_state: &GameState) -> PlayerMove {
-    let me = &game_state.players[0];
-    let mut go_to = me.pos;
-    for item in game_state.items.iter() {
-        if go_to == me.pos || item.pos.dist2(&me.pos) < go_to.dist2(&me.pos) {
-            go_to = item.pos;
-        }
-    }
-    // TODO: why do I need to pass name?)
-    PlayerMove {
-        name: me.name.clone(),
-        target: go_to,
-    }
-}
 
 async fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
     log::info!("Trying to connect to {addr}");

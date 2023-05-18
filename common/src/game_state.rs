@@ -153,16 +153,16 @@ impl GameState {
         if self.turn == self.max_turns {
             return NextTurn::FinalResults(GameResults::new(self));
         }
-        self.update_size();
-        self.add_more_items();
+        //self.update_size();
+        //self.add_more_items();
         NextTurn::GameState(self)
     }
 
-    fn update_size(&mut self) {
-        let scaling = self.scaling_coef().sqrt();
-        self.width = ((START_WIDTH as f64) * scaling).round() as i32;
-        self.height = ((START_HEIGHT as f64) * scaling).round() as i32;
-    }
+    // fn update_size(&mut self) {
+    //     let scaling = self.scaling_coef().sqrt();
+    //     self.width = ((START_WIDTH as f64) * scaling).round() as i32;
+    //     self.height = ((START_HEIGHT as f64) * scaling).round() as i32;
+    // }
 
     fn calc_max_items(&self) -> usize {
         ((MAX_ITEMS as f64) * self.scaling_coef()).round() as usize
