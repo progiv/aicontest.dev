@@ -1,17 +1,19 @@
 use std::env;
-use std::{net::SocketAddr, str::FromStr};
+use std::net::{SocketAddr, TcpStream};
+use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use clap::Parser;
 use game_common::game_state::GameState;
-use std::net::TcpStream;
+use game_common::player_move::PlayerMove;
+use game_common::point::Point;
+
+use crate::connection::Connection;
+use crate::strategy::{angle, best_move};
+use anyhow::Result;
 
 mod connection;
 mod strategy;
-
-use crate::connection::Connection;
-use crate::strategy::best_move;
-use anyhow::Result;
 
 #[derive(Parser)]
 pub struct Args {
@@ -51,10 +53,29 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                 last_seen_turn = turn;
 
                 let now = Instant::now();
-                let my_move = best_move(&game_state);
+                let my_move = if game_state.turn < 3 {
+                    let me = &game_state.players[0];
+                    PlayerMove {
+                        name: me.name.clone(),
+                        target: Point {
+                            x: me.pos.x + 1000,
+                            y: me.pos.y + 100,
+                        },
+                    }
+                } else {
+                    best_move(&game_state)
+                };
                 let elapsed_time = now.elapsed();
-                let speed = game_state.players[0].speed.len();
-                log::info!("calculated in {} ms, speed: {}", elapsed_time.as_millis(), speed);
+                let me = &game_state.players[0];
+                let speed = me.speed.len().round();
+                let angle = (angle(&(my_move.target - me.pos)) - angle(&me.speed)) * 180f64
+                    / std::f64::consts::PI;
+                log::info!(
+                    "calculated in {} ms, angle: {}, speed: {}",
+                    elapsed_time.as_millis(),
+                    angle.round(),
+                    speed
+                );
 
                 conn.write(&format!("GO {} {}", my_move.target.x, my_move.target.y))?;
             }
@@ -80,7 +101,7 @@ fn one_client(addr: String) {
     }
 }
 
-pub fn main() {    
+pub fn main() {
     env_logger::init();
     log::info!("Starting client");
     let args = Args::parse();
