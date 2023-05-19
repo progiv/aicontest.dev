@@ -2,11 +2,11 @@ use game_common::consts::MAX_ACC;
 use game_common::point::Point;
 use game_common::{game_state::GameState, player_move::PlayerMove};
 
-const MAX_DEPTH: usize = 10;
-const FIRST_STEP_DIRECTIONS: i32 = 32;
-const STEP_DIRECTIONS : [i32; 2] = [5, 5];
+const MAX_DEPTH: usize = 15;
+const FIRST_STEP_DIRECTIONS: i32 = 16;
+const STEP_DIRECTIONS : [i32; 4] = [5, 5, 5, 3];
 const ACC: f64 = MAX_ACC * 1000f64; // to make computations more precise after rounding
-const SCORE_DECAY_FACTOR: f64 = 0.95;
+const SCORE_DECAY_FACTOR: f64 = 0.92;
 
 
 fn decay(score_increment: i64, next_steps_score: f64) -> f64 {
@@ -91,10 +91,5 @@ pub fn best_move(game_state: &GameState) -> PlayerMove {
             move_to_go = current_move;
         }
     }
-    log::info!(
-        "target direction: {} {}",
-        move_to_go.target.x - me.pos.x,
-        move_to_go.target.y - me.pos.y
-    );
     move_to_go
 }

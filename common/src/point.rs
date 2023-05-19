@@ -7,9 +7,9 @@ pub struct Point {
 impl Point {
     pub const ZERO: Self = Point { x: 0, y: 0 };
 
-    pub fn len2(&self) -> i64 {
-        let x = self.x as i64;
-        let y = self.y as i64;
+    pub fn len2(&self) -> i32 {
+        let x = self.x;
+        let y = self.y;
         x * x + y * y
     }
     pub fn len(&self) -> f64 {
@@ -22,8 +22,8 @@ impl Point {
         }
         let mult = target_len / (self.len());
         Point {
-            x: ((self.x as f64) * mult).round() as i32,
-            y: ((self.y as f64) * mult).round() as i32,
+            x: ((self.x as f64) * mult) as i32,
+            y: ((self.y as f64) * mult) as i32,
         }
     }
 

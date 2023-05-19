@@ -2,13 +2,11 @@ use std::collections::VecDeque;
 use std::str::FromStr;
 
 use crate::consts::{
-    MAX_ACC, MAX_ITEMS, MAX_ITEM_R, MAX_SPEED, MAX_TURNS, MIN_ITEM_R, PLAYER_RADIUS, START_HEIGHT,
-    START_MAX_PLAYERS, START_WIDTH,
+    MAX_ACC, MAX_SPEED, PLAYER_RADIUS
 };
 use crate::player_move::PlayerMove;
 use crate::point::Point;
 use anyhow::{anyhow, bail};
-use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 
 #[derive(Clone, Debug)]
@@ -29,24 +27,10 @@ pub struct Item {
 }
 
 impl Item {
-    fn intersects_other(&self, other_pos: &Point, other_radius: i32) -> bool {
-        let dist = self.pos - *other_pos;
-        let max_ok_dist :i64 = (self.radius + other_radius) as i64;
-        dist.len2() <= max_ok_dist * max_ok_dist
-    }
-
     pub fn intersects(&self, player: &Player) -> bool {
-        self.intersects_other(&player.pos, player.radius)
-        // let dist = self.pos - player.pos;
-        // let max_ok_dist :i64 = (self.radius + player.radius) as i64;
-        // dist.len2() <= max_ok_dist * max_ok_dist
-    }
-
-    pub fn intersects_item(&self, another: &Self) -> bool {
-        self.intersects_other(&another.pos, another.radius)
-        // let dist = self.pos - another.pos;
-        // let max_ok_dist = self.radius + another.radius;
-        // dist.len2() <= (max_ok_dist * max_ok_dist) as f64
+        let dist = self.pos - player.pos;
+        let max_ok_dist = self.radius + player.radius;
+        dist.len2() <= max_ok_dist * max_ok_dist
     }
 }
 
@@ -80,10 +64,10 @@ impl GameResults {
 fn clamp(pos: &mut i32, speed: &mut i32, min_pos: i32, max_pos: i32) {
     if *pos < min_pos {
         *pos = 2 * min_pos - *pos;
-        *speed *= -1;
+        *speed = -*speed;
     } else if *pos >= max_pos {
         *pos = 2 * max_pos - *pos;
-        *speed *= -1;
+        *speed = -*speed;
     }
 }
 
@@ -145,14 +129,11 @@ impl GameState {
         for player in self.players.iter_mut() {
             next_turn_player_state(player, self.width, self.height);
         }
-        let mut ids: Vec<_> = (0..self.players.len()).collect();
-        let mut rng = thread_rng();
-        ids.shuffle(&mut rng);
-        for &id in ids.iter() {
+        for id in 0..self.players.len() {
             for i in (0..self.items.len()).rev() {
                 if self.items[i].intersects(&self.players[id]) {
                     self.players[id].score += 1;
-                    self.items.remove(i);
+                    self.items.swap_remove(i);
                 }
             }
         }
@@ -160,50 +141,7 @@ impl GameState {
         if self.turn == self.max_turns {
             return self;
         }
-        self.update_size();
-        //self.add_more_items();
         self
-    }
-
-    fn update_size(&mut self) {
-        let scaling = self.scaling_coef().sqrt();
-        self.width = ((START_WIDTH as f64) * scaling).round() as i32;
-        self.height = ((START_HEIGHT as f64) * scaling).round() as i32;
-    }
-
-    fn calc_max_items(&self) -> usize {
-        ((MAX_ITEMS as f64) * self.scaling_coef()).round() as usize
-    }
-
-    fn scaling_coef(&self) -> f64 {
-        if self.players.len() < START_MAX_PLAYERS {
-            return 1.0;
-        }
-        (self.players.len() as f64) / (START_MAX_PLAYERS as f64)
-    }
-
-    fn add_more_items(&mut self) {
-        let mut rng = thread_rng();
-
-        let max_items = self.calc_max_items();
-        while self.items.len() < max_items {
-            // TODO: make logic more interesting
-            let r = rng.gen_range(MIN_ITEM_R..MAX_ITEM_R);
-            let new_item = Item {
-                pos: self.gen_rand_position(r),
-                radius: r,
-            };
-            let mut ok = true;
-            for existing in self.items.iter() {
-                if existing.intersects_item(&new_item) {
-                    ok = false;
-                    break;
-                }
-            }
-            if ok {
-                self.items.push(new_item)
-            }
-        }
     }
 
     fn gen_rand_position(&self, radius: i32) -> Point {
@@ -211,20 +149,6 @@ impl GameState {
         let x = rng.gen_range(radius..self.width - radius);
         let y = rng.gen_range(radius..self.height - radius);
         Point { x, y }
-    }
-
-    pub fn new(game_id: &str) -> Self {
-        let mut res = Self {
-            width: START_WIDTH,
-            height: START_HEIGHT,
-            turn: 0,
-            max_turns: MAX_TURNS,
-            players: vec![],
-            items: vec![],
-            game_id: game_id.to_owned(),
-        };
-        res.add_more_items();
-        res
     }
 
     pub fn to_string(&self) -> String {
