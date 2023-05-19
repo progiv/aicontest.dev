@@ -1,5 +1,6 @@
 use std::env;
-use std::{net::SocketAddr, str::FromStr, time::Duration};
+use std::{net::SocketAddr, str::FromStr};
+use std::time::{Duration, Instant};
 
 use clap::Parser;
 use game_common::game_state::GameState;
@@ -48,7 +49,12 @@ async fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                     log::info!("New game started. Current turn: {turn}");
                 }
                 last_seen_turn = turn;
+
+                let now = Instant::now();
                 let my_move = best_move(&game_state);
+                let elapsed_time = now.elapsed();
+                log::info!("best_move calculation took {} milliseconds", elapsed_time.as_millis());
+
                 conn.write(&format!("GO {} {}", my_move.target.x, my_move.target.y))
                     .await?;
             }

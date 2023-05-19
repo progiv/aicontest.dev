@@ -29,16 +29,24 @@ pub struct Item {
 }
 
 impl Item {
+    fn intersects_other(&self, other_pos: &Point, other_radius: i32) -> bool {
+        let dist = self.pos - *other_pos;
+        let max_ok_dist :i64 = (self.radius + other_radius) as i64;
+        dist.len2() <= max_ok_dist * max_ok_dist
+    }
+
     pub fn intersects(&self, player: &Player) -> bool {
-        let dist = self.pos - player.pos;
-        let max_ok_dist = self.radius + player.radius;
-        dist.len2() <= (max_ok_dist * max_ok_dist) as f64
+        self.intersects_other(&player.pos, player.radius)
+        // let dist = self.pos - player.pos;
+        // let max_ok_dist :i64 = (self.radius + player.radius) as i64;
+        // dist.len2() <= max_ok_dist * max_ok_dist
     }
 
     pub fn intersects_item(&self, another: &Self) -> bool {
-        let dist = self.pos - another.pos;
-        let max_ok_dist = self.radius + another.radius;
-        dist.len2() <= (max_ok_dist * max_ok_dist) as f64
+        self.intersects_other(&another.pos, another.radius)
+        // let dist = self.pos - another.pos;
+        // let max_ok_dist = self.radius + another.radius;
+        // dist.len2() <= (max_ok_dist * max_ok_dist) as f64
     }
 }
 
@@ -67,11 +75,6 @@ impl GameResults {
             game_id: state.game_id,
         }
     }
-}
-
-pub enum NextTurn {
-    GameState(GameState),
-    FinalResults(GameResults),
 }
 
 fn clamp(pos: &mut i32, speed: &mut i32, min_pos: i32, max_pos: i32) {
@@ -134,7 +137,11 @@ pub fn next_turn_player_state(player: &mut Player, width: i32, height: i32) {
 }
 
 impl GameState {
-    pub fn next_turn(mut self) -> NextTurn {
+    pub fn next_turn(mut self) -> GameState {
+        if self.turn > self.max_turns {
+            return self;
+        }
+
         for player in self.players.iter_mut() {
             next_turn_player_state(player, self.width, self.height);
         }
@@ -151,18 +158,18 @@ impl GameState {
         }
         self.turn += 1;
         if self.turn == self.max_turns {
-            return NextTurn::FinalResults(GameResults::new(self));
+            return self;
         }
-        //self.update_size();
+        self.update_size();
         //self.add_more_items();
-        NextTurn::GameState(self)
+        self
     }
 
-    // fn update_size(&mut self) {
-    //     let scaling = self.scaling_coef().sqrt();
-    //     self.width = ((START_WIDTH as f64) * scaling).round() as i32;
-    //     self.height = ((START_HEIGHT as f64) * scaling).round() as i32;
-    // }
+    fn update_size(&mut self) {
+        let scaling = self.scaling_coef().sqrt();
+        self.width = ((START_WIDTH as f64) * scaling).round() as i32;
+        self.height = ((START_HEIGHT as f64) * scaling).round() as i32;
+    }
 
     fn calc_max_items(&self) -> usize {
         ((MAX_ITEMS as f64) * self.scaling_coef()).round() as usize

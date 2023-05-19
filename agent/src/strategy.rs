@@ -1,43 +1,51 @@
 use game_common::consts::MAX_ACC;
 use game_common::point::Point;
-use game_common::{game_state::GameState, game_state::NextTurn, player_move::PlayerMove};
+use game_common::{game_state::GameState, player_move::PlayerMove};
 
-// todo: score decay
-
-const MAX_DEPTH: i32 = 10;
-const LINEAR_DEPTH: i32 = 2;
-const FIRST_STEP_DIRECTIONS: i32 = 360;
+const MAX_DEPTH: usize = 10;
+const FIRST_STEP_DIRECTIONS: i32 = 32;
+const STEP_DIRECTIONS : [i32; 2] = [5, 5];
 const ACC: f64 = MAX_ACC * 1000f64; // to make computations more precise after rounding
+const SCORE_DECAY_FACTOR: f64 = 0.95;
+
+
+fn decay(score_increment: i64, next_steps_score: f64) -> f64 {
+    score_increment as f64 + next_steps_score * SCORE_DECAY_FACTOR
+}
 
 // Make a step to the defined destination and find best possible score
-fn best_score(state: GameState, depth: i32) -> i64 {
+fn best_score(mut state: GameState, depth: usize) -> f64 {
+    let prev_score = state.players[0].score;
+    state = state.next_turn();
+    let score_increment = state.players[0].score - prev_score;
+
     if depth == MAX_DEPTH {
-        return state.players[0].score;
+        return score_increment as f64;
     }
 
-    if depth >= LINEAR_DEPTH {
-        // No target branching to reduce complexity
-        match state.next_turn() {
-            NextTurn::GameState(next_state) => {
-                return next_state.players[0].score;
-            }
-            NextTurn::FinalResults(results) => {
-                return results.players[0].score;
-            }
-        }
+    if depth >= STEP_DIRECTIONS.len() {
+        return decay(score_increment, best_score(state, depth + 1));
     }
 
-    // branch at the beginning of the movement
-    // no branching for mvp
-    match state.next_turn() {
-        NextTurn::GameState(next_state) => {
-            return best_score(next_state, depth + 1);
-            // return next_state.players[0].score + best_score(next_state, depth + 1);
-        }
-        NextTurn::FinalResults(results) => {
-            return results.players[0].score;
+    let me = &state.players[0];
+    let mut score_to_go = 0f64;
+    for i in 0..STEP_DIRECTIONS[depth] {
+        let mut temp_state = state.clone();
+        let angle = angle_by_index(i, STEP_DIRECTIONS[depth]) + angle(&me.speed);
+        let current_move = PlayerMove {
+            name: me.name.clone(),
+            target: Point {
+                x: me.pos.x + (ACC * f64::sin(angle)) as i32,
+                y: me.pos.y + (ACC * f64::cos(angle)) as i32,
+            },
+        };
+        temp_state.apply_move(current_move.clone());
+        let score = best_score(temp_state, depth + 1);
+        if score > score_to_go {
+            score_to_go = score;
         }
     }
+    decay(score_increment, score_to_go)
 }
 
 fn angle(point: &Point) -> f64 {
@@ -45,12 +53,13 @@ fn angle(point: &Point) -> f64 {
 }
 
 fn angle_by_index(index: i32, count: i32) -> f64 {
-    f64::from(index) * 2f64 * std::f64::consts::PI / f64::from(count)
+    f64::from(index) * 2f64 * std::f64::consts::PI / f64::from(count - 1)
+    // TODO try different angle sampling
 }
 
 pub fn best_move(game_state: &GameState) -> PlayerMove {
     let me = &game_state.players[0];
-    let mut score_to_go = 0;
+    let mut score_to_go = 0f64;
     let mut move_to_go = PlayerMove {
         name: me.name.clone(),
         target: Point {
