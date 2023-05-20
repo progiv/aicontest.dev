@@ -1,15 +1,13 @@
 use std::env;
 use std::net::{SocketAddr, TcpStream};
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use clap::Parser;
 use game_common::game_state::GameState;
-// use game_common::player_move::PlayerMove;
-// use game_common::point::Point;
 
 use crate::connection::Connection;
-use crate::strategy::{angle, best_move};
+use crate::strategy::best_move;
 use anyhow::Result;
 
 mod connection;
@@ -19,8 +17,6 @@ mod strategy;
 pub struct Args {
     #[clap(long)]
     addr: Option<String>,
-    #[clap(long, default_value_t = 1)]
-    num_bots: usize,
 }
 
 const MY_LOGIN_PREFIX: &str = "progiv-rust-";
@@ -52,19 +48,7 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                 }
                 last_seen_turn = turn;
 
-                let now = Instant::now();
                 let my_move = best_move(&game_state);
-                let elapsed_time = now.elapsed();
-                let me = &game_state.players[0];
-                let speed = me.speed.len().round();
-                let angle = (angle(&(my_move.target - me.pos)) - angle(&me.speed)) * 180f64
-                    / std::f64::consts::PI;
-                log::info!(
-                    "calculated in {} ms, angle: {}, speed: {}",
-                    elapsed_time.as_millis(),
-                    angle.round(),
-                    speed
-                );
 
                 conn.write(&format!("GO {} {}", my_move.target.x, my_move.target.y))?;
             }
