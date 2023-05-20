@@ -49,8 +49,7 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                 last_seen_turn = turn;
 
                 let my_move = best_move(&game_state);
-
-                conn.write(&format!("GO {} {}", my_move.target.x, my_move.target.y))?;
+                conn.write(&format!("GO {} {}", my_move.target.x.round(), my_move.target.y.round()))?;
             }
             Err(err) => {
                 anyhow::bail!("Error while parsing state: {}", err);

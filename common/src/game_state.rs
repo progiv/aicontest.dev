@@ -2,12 +2,11 @@ use std::collections::VecDeque;
 use std::str::FromStr;
 
 use crate::consts::{
-    MAX_ACC, MAX_SPEED, PLAYER_RADIUS
+    MAX_ACC, MAX_SPEED
 };
 use crate::player_move::PlayerMove;
 use crate::point::Point;
 use anyhow::{anyhow, bail};
-use rand::{thread_rng, Rng};
 
 #[derive(Clone, Debug)]
 pub struct Player {
@@ -15,15 +14,15 @@ pub struct Player {
     pub pos: Point,
     pub speed: Point,
     pub target: Point,
-    pub score: i64,
-    pub radius: i32,
+    pub score: i32,
+    pub radius: f32,
     // TODO: contact info?
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq)] // Eq
 pub struct Item {
     pub pos: Point,
-    pub radius: i32,
+    pub radius: f32,
 }
 
 impl Item {
@@ -36,8 +35,8 @@ impl Item {
 
 #[derive(Clone)]
 pub struct GameState {
-    pub width: i32,
-    pub height: i32,
+    pub width: f32,
+    pub height: f32,
     pub turn: usize,
     pub max_turns: usize,
     pub players: Vec<Player>,
@@ -61,12 +60,12 @@ impl GameResults {
     }
 }
 
-fn clamp(pos: &mut i32, speed: &mut i32, min_pos: i32, max_pos: i32) {
+fn clamp(pos: &mut f32, speed: &mut f32, min_pos: f32, max_pos: f32) {
     if *pos < min_pos {
-        *pos = 2 * min_pos - *pos;
+        *pos = 2f32 * min_pos - *pos;
         *speed = -*speed;
     } else if *pos >= max_pos {
-        *pos = 2 * max_pos - *pos;
+        *pos = 2f32 * max_pos - *pos;
         *speed = -*speed;
     }
 }
@@ -96,10 +95,10 @@ impl TokenReader {
     }
 }
 
-pub fn next_turn_player_state(player: &mut Player, width: i32, height: i32) {
+pub fn next_turn_player_state(player: &mut Player, width: f32, height: f32) {
     let mut acc = player.target - player.pos;
-    const MAX_ACC_2: i32 = (MAX_ACC as i32) * (MAX_ACC as i32);
-    const MAX_SPEED_2: i32 = (MAX_SPEED as i32) * (MAX_SPEED as i32);
+    const MAX_ACC_2: f32 = MAX_ACC * MAX_ACC;
+    const MAX_SPEED_2: f32 = MAX_SPEED * MAX_SPEED;
     if acc.len2() > MAX_ACC_2 {
         acc = acc.scale(MAX_ACC);
     }
@@ -144,13 +143,6 @@ impl GameState {
             return self;
         }
         self
-    }
-
-    fn gen_rand_position(&self, radius: i32) -> Point {
-        let mut rng = thread_rng();
-        let x = rng.gen_range(radius..self.width - radius);
-        let y = rng.gen_range(radius..self.height - radius);
-        Point { x, y }
     }
 
     pub fn to_string(&self) -> String {
@@ -269,29 +261,10 @@ impl GameState {
         }
     }
 
-    pub fn apply_move(&mut self, mut player_move: PlayerMove) {
+    pub fn apply_move(&mut self, player_move: PlayerMove) {
         // TODO: validate move
-        const MAX_C: u32 = u32::MAX / 10;
-        if player_move.target.x.unsigned_abs() > MAX_C
-            || player_move.target.y.unsigned_abs() > MAX_C
-        {
-            player_move.target.x /= 10;
-            player_move.target.y /= 10;
-        }
-        if let Some(idx) = self.find_player_idx(&player_move.name) {
-            self.players[idx].target = player_move.target;
-        } else {
-            let radius = PLAYER_RADIUS;
-            let pos = self.gen_rand_position(radius);
-            self.players.push(Player {
-                name: player_move.name,
-                pos,
-                speed: Point::ZERO,
-                target: player_move.target,
-                score: 0,
-                radius,
-            });
-        }
+        let idx = self.find_player_idx(&player_move.name).unwrap();
+        self.players[idx].target = player_move.target;
     }
 }
 

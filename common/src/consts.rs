@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-pub const MAX_ACC: f64 = 20.0;
-pub const MAX_SPEED: f64 = 100.0;
+pub const MAX_ACC: f32 = 20.0;
+pub const MAX_SPEED: f32 = 100.0;
 pub const MAX_ITEMS: usize = 10;
 pub const MIN_ITEM_R: i32 = 20;
 pub const MAX_ITEM_R: i32 = 100;
