@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use clap::Parser;
 use game_common::game_state::GameState;
-use game_common::player_move::PlayerMove;
-use game_common::point::Point;
+// use game_common::player_move::PlayerMove;
+// use game_common::point::Point;
 
 use crate::connection::Connection;
 use crate::strategy::{angle, best_move};
@@ -53,18 +53,7 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                 last_seen_turn = turn;
 
                 let now = Instant::now();
-                let my_move = if game_state.turn < 3 {
-                    let me = &game_state.players[0];
-                    PlayerMove {
-                        name: me.name.clone(),
-                        target: Point {
-                            x: me.pos.x + 1000,
-                            y: me.pos.y + 100,
-                        },
-                    }
-                } else {
-                    best_move(&game_state)
-                };
+                let my_move = best_move(&game_state);
                 let elapsed_time = now.elapsed();
                 let me = &game_state.players[0];
                 let speed = me.speed.len().round();

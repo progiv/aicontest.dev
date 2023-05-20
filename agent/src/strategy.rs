@@ -4,12 +4,18 @@ use game_common::{game_state::GameState, player_move::PlayerMove};
 
 use std::f64::consts::PI;
 
-const MAX_DEPTH: usize = 14;
-const FIRST_STEP_DIRECTIONS: i32 = 16;
-const STEP_DIRECTIONS: [i32; 5] = [7, 7, 5, 5, 5];
+use rayon::prelude::*;
+
+const MAX_DEPTH: usize = 12;
+const FIRST_STEP_DIRECTIONS: i32 = 18;
+const STEP_DIRECTIONS: [i32; 6] = [7, 5, 5, 3, 5, 5];
 const ACC: f64 = MAX_ACC * 1000f64; // to make computations more precise after rounding
-const SCORE_DECAY_FACTOR: f64 = 0.8;
+const SCORE_DECAY_FACTOR: f64 = 0.85;
 // TODO parallel first loop
+// TODO overflows: 32 -> 64
+// TODO Profiler report:
+// next_turn 74%
+// among them next_turn_player_state 32%
 
 fn decay(score_increment: i64, next_steps_score: f64) -> f64 {
     score_increment as f64 + next_steps_score * SCORE_DECAY_FACTOR
@@ -18,6 +24,12 @@ fn decay(score_increment: i64, next_steps_score: f64) -> f64 {
 fn blow_items(state: &mut GameState, increment: i32) {
     for item in &mut state.items {
         item.radius += increment;
+    }
+}
+
+fn blow_players(state: &mut GameState, increment: i32) {
+    for player in &mut state.players[1..] {
+        player.radius += increment;
     }
 }
 
@@ -40,28 +52,34 @@ fn filter_state(state: &mut GameState) {
 
     // Remove players but MAX_PLAYERS closest to poi
     let mut player_ids: Vec<usize> = (1..state.players.len()).collect();
-    const MAX_PLAYERS: usize = 2;
+    const MAX_PLAYERS: usize = 3;
     player_ids.sort_by_key(|i| (state.players[*i].pos - poi).len2());
     player_ids[MAX_PLAYERS..].sort();
     for i in player_ids[MAX_PLAYERS..].iter().rev() {
         state.players.swap_remove(*i);
     }
 
-    const MAX_ITEMS: usize = 32;
+    const MAX_ITEMS: usize = 24;
     state.items.sort_by_key(|it| (it.pos - poi).len2());
     state.items.truncate(MAX_ITEMS);
 }
 
 // Make a step to the defined destination and find best possible score
 fn best_score(mut state: GameState, depth: usize) -> f64 {
+    if state.turn > state.max_turns {
+        return 0f64;
+    }
     if depth == 0 {
         blow_items(&mut state, -1);
     } else if depth == 3 {
-        blow_items(&mut state, 5);
+        // blow_items(&mut state, 5);
+        blow_players(&mut state, 3);
     } else if depth == 4 {
-        blow_items(&mut state, 10);
+        blow_items(&mut state, 5);
+        blow_players(&mut state, 3);
     } else if depth == 5 {
-        blow_items(&mut state, 20);
+        blow_items(&mut state, 10);
+        blow_players(&mut state, 3);
     } else if depth >= MAX_DEPTH - 10 {
         blow_items(&mut state, 20)
     }
@@ -109,46 +127,36 @@ fn angle_by_index_round(index: i32, count: i32) -> f64 {
 }
 
 fn angle_by_index_semiforward(index: i32, count: i32) -> f64 {
-    f64::from(2 * index - count + 1) * 0.7f64 * PI / f64::from(count - 1)
+    f64::from(2 * index - count + 1) * 0.65f64 * PI / f64::from(count - 1)
+}
+
+struct Move {
+    score: f64,
+    player_move: PlayerMove,
 }
 
 pub fn best_move(game_state: &GameState) -> PlayerMove {
     let me = &game_state.players[0];
-    let mut score_to_go = 0f64;
-    let mut move_to_go = PlayerMove {
-        name: me.name.clone(),
-        target: Point {
-            x: me.pos.x + me.speed.x * MAX_ACC as i32,
-            y: me.pos.y + me.speed.y * MAX_ACC as i32,
-        },
-    };
-    for i in 0..FIRST_STEP_DIRECTIONS {
-        let mut temp_state = game_state.clone();
-        filter_state(&mut temp_state);
-        let angle = angle_by_index_round(i, FIRST_STEP_DIRECTIONS) + angle(&me.speed);
-        let current_move = PlayerMove {
-            name: me.name.clone(),
-            target: Point {
-                x: me.pos.x + (ACC * f64::sin(angle)) as i32,
-                y: me.pos.y + (ACC * f64::cos(angle)) as i32,
-            },
-        };
-        temp_state.apply_move(current_move.clone());
-        let score = best_score(temp_state, 0);
-        if score > score_to_go {
-            log::debug!(
-                "New best score {} for i={} ({}, {})",
-                score,
-                i,
-                current_move.target.x - me.pos.x,
-                current_move.target.y - me.pos.y
-            );
-            score_to_go = score;
-            move_to_go = current_move;
-        }
-    }
-    log::info!("best_score {:.2}", score_to_go);
-    move_to_go
+    let best_move = (0..FIRST_STEP_DIRECTIONS)
+        .into_par_iter()
+        .map(|i| {
+            let mut temp_state = game_state.clone();
+            filter_state(&mut temp_state);
+            let angle = angle_by_index_round(i, FIRST_STEP_DIRECTIONS) + angle(&me.speed);
+            let current_move = PlayerMove {
+                name: me.name.clone(),
+                target: Point {
+                    x: me.pos.x + (ACC * f64::sin(angle)) as i32,
+                    y: me.pos.y + (ACC * f64::cos(angle)) as i32,
+                },
+            };
+            temp_state.apply_move(current_move.clone());
+            let score = best_score(temp_state, 0);
+            Move {score: score, player_move: current_move}
+        }).max_by_key(|mv| (mv.score * 1000000f64) as i64)
+        .unwrap();
+    log::info!("best_score {:.2}", best_move.score);
+    best_move.player_move
 }
 
 #[test]
