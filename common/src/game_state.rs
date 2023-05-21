@@ -9,7 +9,6 @@ use anyhow::{anyhow, bail};
 
 #[derive(Clone, Debug)]
 pub struct Player {
-    pub name: String,
     pub pos: Point,
     pub speed: Point,
     pub target: Point,
@@ -138,9 +137,6 @@ impl GameState {
             }
         }
         self.turn += 1;
-        if self.turn == self.max_turns {
-            return self;
-        }
         self
     }
 
@@ -157,8 +153,7 @@ impl GameState {
         res += &format!("{}\n", self.players.len());
         for player in self.players.iter() {
             res += &format!(
-                "{name} {score} {x} {y} {r} {vx} {vy} {target_x} {target_y}\n",
-                name = player.name,
+                "{score} {x} {y} {r} {vx} {vy} {target_x} {target_y}\n",
                 score = player.score,
                 x = player.pos.x,
                 y = player.pos.y,
@@ -204,7 +199,8 @@ impl GameState {
         };
         let num_players = tokens.next("num_players")?;
         for _ in 0..num_players {
-            let name = tokens.next("player name")?;
+            // We dont use names
+            let _name: String = tokens.next("player name")?;
             let score = tokens.next("player score")?;
             let x = tokens.next("player x")?;
             let y = tokens.next("player y")?;
@@ -214,7 +210,7 @@ impl GameState {
             let target_x = tokens.next("player target_x")?;
             let target_y = tokens.next("player target_y")?;
             res.players.push(Player {
-                name,
+                //name,
                 score,
                 pos: Point { x, y },
                 radius: r,
@@ -251,20 +247,24 @@ impl GameState {
 #[test]
 fn next_turn_state() {
     let mut player = Player {
-        name: "player".to_owned(),
-        pos: Point { x: 100, y: 100 },
-        speed: Point { x: 10, y: 0 },
-        target: Point { x: 150, y: 200 }, // sent by `GO 150 200` command
+        pos: Point { x: 100f32, y: 100f32 },
+        speed: Point { x: 10f32, y: 0f32 },
+        target: Point { x: 150f32, y: 200f32 }, // sent by `GO 150 200` command
         score: 0,
-        radius: 1,
+        radius: 1f32,
     };
-    next_turn_player_state(&mut player, 1000, 1000);
+    next_turn_player_state(&mut player, 1000f32, 1000f32);
     // acceleration direction is (150, 200) - (100, 100) = (50, 100)
     // the length of vector (50, 100) is sqrt(50^2 + 100^2) = 111.8, which is bigger than MAX_ACC=20.0, so real acceleration is:
     // (50, 100) * 20.0 / 111.8 = (8.9, 17.8)
     // after that acceleration is rounded to integers: (9, 18)
     // new speed is (10, 0) + (9, 18) = (19, 18)
-    assert_eq!(player.speed, Point { x: 19, y: 18 });
+
+    // assert_eq!(player.speed, Point { x: 19f32, y: 18f32 });
+    assert_float_absolute_eq!(player.speed.x, 19f32, 0.5);
+    assert_float_absolute_eq!(player.speed.y, 18f32, 0.5);
     // new position is (100, 100) + (19, 18) = (119, 118)
-    assert_eq!(player.pos, Point { x: 119, y: 118 });
+    // assert_eq!(player.pos, Point { x: 119f32, y: 118f32 });
+    assert_float_absolute_eq!(player.pos.x, 119f32, 0.5);
+    assert_float_absolute_eq!(player.pos.y, 118f32, 0.5);
 }

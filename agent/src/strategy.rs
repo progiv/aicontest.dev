@@ -1,16 +1,16 @@
 use game_common::consts::{MAX_ACC, MAX_SPEED};
+use game_common::game_state::GameState;
 use game_common::point::Point;
-use game_common::{game_state::GameState};
 
 use std::f32::consts::PI;
 use std::time::Instant;
 
 use rayon::prelude::*;
 
-const MAX_DEPTH: usize = 14;
+const MAX_DEPTH: usize = 16;
 const OTHER_PLAYERS_REMOVE_DEPTH: usize = 7;
 const FIRST_STEP_DIRECTIONS: i32 = 15;
-const STEP_DIRECTIONS: [i32; 6] = [7, 5, 5, 5, 5, 5];
+const STEP_DIRECTIONS: [i32; 6] = [9, 5, 5, 5, 5, 5];
 const ACC: f32 = MAX_ACC * 1000f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.85;
 const SPEED_SCORE_FACTOR: f32 = 0.05;
@@ -42,7 +42,7 @@ fn clamp(pos: &mut f32, min_pos: f32, max_pos: f32) {
     }
 }
 
-fn filter_state(state: &mut GameState) {
+pub fn filter_state(state: &mut GameState) {
     let my_pos = state.players[0].pos;
     let radius = state.players[0].radius;
 
@@ -60,7 +60,7 @@ fn filter_state(state: &mut GameState) {
         state.players.swap_remove(*i);
     }
 
-    const MAX_ITEMS: usize = 24;
+    const MAX_ITEMS: usize = 30;
     state.items.sort_by_key(|it| (it.pos - poi).len2() as i64);
     state.items.truncate(MAX_ITEMS);
 }
@@ -98,7 +98,8 @@ fn best_score(mut state: GameState, depth: usize) -> f32 {
 
     let prev_score = state.players[0].score;
     state = state.next_turn();
-    let score_increment = state.players[0].score - prev_score;
+    let me = &state.players[0];
+    let score_increment = me.score - prev_score;
 
     if depth == MAX_DEPTH {
         return score_increment as f32;
@@ -107,24 +108,23 @@ fn best_score(mut state: GameState, depth: usize) -> f32 {
     if depth >= STEP_DIRECTIONS.len() {
         return decay(
             score_increment,
-            speed_score(&state.players[0].speed) + best_score(state, depth + 1),
+            speed_score(&me.speed) + best_score(state, depth + 1),
         );
     }
-
-    let me = &state.players[0];
-    let mut score_to_go = 0f32;
-    for i in 0..STEP_DIRECTIONS[depth] {
-        let mut temp_state = state.clone();
-        let angle = angle_by_index_semiforward(i, STEP_DIRECTIONS[depth], 0.9) + angle(&me.speed);
-        temp_state.apply_my_target(Point {
+    
+    let score_to_go_vec: Vec<f32> = (0..STEP_DIRECTIONS[depth])
+        .into_par_iter()
+        .map(|i| {
+            let mut temp_state = state.clone();
+            let angle =
+                angle_by_index_semiforward(i, STEP_DIRECTIONS[depth], 0.9) + angle(&me.speed);
+            temp_state.apply_my_target(Point {
                 x: me.pos.x + ACC * f32::sin(angle),
                 y: me.pos.y + ACC * f32::cos(angle),
             });
-        let score = speed_score(&temp_state.players[0].speed) + best_score(temp_state, depth + 1);
-        if score > score_to_go {
-            score_to_go = score;
-        }
-    }
+            speed_score(&temp_state.players[0].speed) + best_score(temp_state, depth + 1)
+        }).collect();
+    let score_to_go = score_to_go_vec.into_iter().reduce(f32::max).unwrap();
     decay(score_increment, score_to_go)
 }
 
@@ -152,13 +152,12 @@ pub fn best_target(game_state: &GameState) -> Point {
         .into_par_iter()
         .map(|i| {
             let mut temp_state = game_state.clone();
-            filter_state(&mut temp_state);
             let angle =
                 angle_by_index_semiforward(i, FIRST_STEP_DIRECTIONS, 0.9) + angle(&me.speed);
             let target = Point {
-                    x: me.pos.x + ACC * angle.sin(),
-                    y: me.pos.y + ACC * angle.cos(),
-                };
+                x: me.pos.x + ACC * angle.sin(),
+                y: me.pos.y + ACC * angle.cos(),
+            };
             temp_state.apply_my_target(target);
             let score = best_score(temp_state, 0);
             Move {
