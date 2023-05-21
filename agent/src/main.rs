@@ -7,7 +7,7 @@ use clap::Parser;
 use game_common::game_state::GameState;
 
 use crate::connection::Connection;
-use crate::strategy::best_move;
+use crate::strategy::best_target;
 use anyhow::Result;
 
 mod connection;
@@ -48,8 +48,8 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                 }
                 last_seen_turn = turn;
 
-                let my_move = best_move(&game_state);
-                conn.write(&format!("GO {} {}", my_move.target.x.round(), my_move.target.y.round()))?;
+                let my_target = best_target(&game_state);
+                conn.write(&format!("GO {} {}", my_target.x.round(), my_target.y.round()))?;
             }
             Err(err) => {
                 anyhow::bail!("Error while parsing state: {}", err);

@@ -1,6 +1,6 @@
 use game_common::consts::{MAX_ACC, MAX_SPEED};
 use game_common::point::Point;
-use game_common::{game_state::GameState, player_move::PlayerMove};
+use game_common::{game_state::GameState};
 
 use std::f32::consts::PI;
 use std::time::Instant;
@@ -14,7 +14,6 @@ const STEP_DIRECTIONS: [i32; 6] = [7, 5, 5, 5, 5, 5];
 const ACC: f32 = MAX_ACC * 1000f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.85;
 const SPEED_SCORE_FACTOR: f32 = 0.05;
-// TODO overflows: 32 -> 64
 // TODO Profiler report:
 // next_turn 74%
 // among them next_turn_player_state 32%
@@ -117,14 +116,10 @@ fn best_score(mut state: GameState, depth: usize) -> f32 {
     for i in 0..STEP_DIRECTIONS[depth] {
         let mut temp_state = state.clone();
         let angle = angle_by_index_semiforward(i, STEP_DIRECTIONS[depth], 0.9) + angle(&me.speed);
-        let current_move = PlayerMove {
-            name: me.name.clone(),
-            target: Point {
+        temp_state.apply_my_target(Point {
                 x: me.pos.x + ACC * f32::sin(angle),
                 y: me.pos.y + ACC * f32::cos(angle),
-            },
-        };
-        temp_state.apply_move(current_move.clone());
+            });
         let score = speed_score(&temp_state.players[0].speed) + best_score(temp_state, depth + 1);
         if score > score_to_go {
             score_to_go = score;
@@ -147,10 +142,10 @@ fn angle_by_index_semiforward(index: i32, count: i32, fraction: f32) -> f32 {
 
 struct Move {
     score: f32,
-    player_move: PlayerMove,
+    target: Point,
 }
 
-pub fn best_move(game_state: &GameState) -> PlayerMove {
+pub fn best_target(game_state: &GameState) -> Point {
     let now = Instant::now();
     let me = &game_state.players[0];
     let best_move = (0..FIRST_STEP_DIRECTIONS)
@@ -160,25 +155,22 @@ pub fn best_move(game_state: &GameState) -> PlayerMove {
             filter_state(&mut temp_state);
             let angle =
                 angle_by_index_semiforward(i, FIRST_STEP_DIRECTIONS, 0.9) + angle(&me.speed);
-            let current_move = PlayerMove {
-                name: me.name.clone(),
-                target: Point {
+            let target = Point {
                     x: me.pos.x + ACC * angle.sin(),
                     y: me.pos.y + ACC * angle.cos(),
-                },
-            };
-            temp_state.apply_move(current_move.clone());
+                };
+            temp_state.apply_my_target(target);
             let score = best_score(temp_state, 0);
             Move {
                 score: score,
-                player_move: current_move,
+                target: target,
             }
         })
         .max_by_key(|mv| (mv.score * 1000000f32) as i64)
         .unwrap();
     let elapsed_time = now.elapsed();
     let speed = me.speed.len();
-    let angle = (angle(&(best_move.player_move.target - me.pos)) - angle(&me.speed)) * 180f32 / PI;
+    let angle = (angle(&(best_move.target - me.pos)) - angle(&me.speed)) * 180f32 / PI;
     log::info!(
         "score {:.2} ts {}ms, angle: {}, speed: {:.1}",
         best_move.score,
@@ -187,7 +179,7 @@ pub fn best_move(game_state: &GameState) -> PlayerMove {
         speed
     );
 
-    best_move.player_move
+    best_move.target
 }
 
 #[test]

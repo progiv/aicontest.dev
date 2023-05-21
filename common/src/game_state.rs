@@ -4,7 +4,6 @@ use std::str::FromStr;
 use crate::consts::{
     MAX_ACC, MAX_SPEED
 };
-use crate::player_move::PlayerMove;
 use crate::point::Point;
 use anyhow::{anyhow, bail};
 
@@ -243,28 +242,9 @@ impl GameState {
         Ok(res)
     }
 
-    fn find_player_idx(&self, player_name: &str) -> Option<usize> {
-        for i in 0..self.players.len() {
-            if self.players[i].name == player_name {
-                return Some(i);
-            }
-        }
-        None
-    }
-
-    pub fn make_player_first(&mut self, player_name: &str) -> bool {
-        if let Some(idx) = self.find_player_idx(player_name) {
-            self.players.swap(0, idx);
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn apply_move(&mut self, player_move: PlayerMove) {
+    pub fn apply_my_target(&mut self, target: Point) {
         // TODO: validate move
-        let idx = self.find_player_idx(&player_move.name).unwrap();
-        self.players[idx].target = player_move.target;
+        self.players[0].target = target;
     }
 }
 
