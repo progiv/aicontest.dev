@@ -1,37 +1,27 @@
 use game_common::consts::{MAX_ACC, MAX_SPEED};
-use game_common::game_state::GameState;
+use game_common::game_state::{GameState, Player};
 use game_common::point::Point;
 
 use std::f32::consts::PI;
 use std::time::Instant;
 
-use rayon::prelude::*;
+// use rayon::prelude::*;
 
-const MAX_DEPTH: usize = 16;
-const OTHER_PLAYERS_REMOVE_DEPTH: usize = 7;
-const FIRST_STEP_DIRECTIONS: i32 = 15;
-const STEP_DIRECTIONS: [i32; 6] = [9, 5, 5, 5, 5, 5];
+use crate::precompute::GamePrecompute;
+use crate::precompute::MAX_DEPTH;
+
+// const OTHER_PLAYERS_REMOVE_DEPTH: usize = 7;
+// const FIRST_STEP_DIRECTIONS: i32 = 15;
+const STEP_DIRECTIONS: [i32; 6] = [15, 9, 5, 5, 5, 5];
 const ACC: f32 = MAX_ACC * 1000f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.85;
-const SPEED_SCORE_FACTOR: f32 = 0.05;
+// const SPEED_SCORE_FACTOR: f32 = 0.05;
 // TODO Profiler report:
 // next_turn 74%
 // among them next_turn_player_state 32%
 
-fn decay(score_increment: i32, next_steps_score: f32) -> f32 {
-    score_increment as f32 + next_steps_score * SCORE_DECAY_FACTOR
-}
-
-fn blow_items(state: &mut GameState, increment: f32) {
-    for item in &mut state.items {
-        item.radius += increment;
-    }
-}
-
-fn blow_players(state: &mut GameState, increment: f32) {
-    for player in &mut state.players[1..] {
-        player.radius += increment;
-    }
+fn decay_f32(score_increment: f32, next_steps_score: f32) -> f32 {
+    score_increment + next_steps_score * SCORE_DECAY_FACTOR
 }
 
 fn clamp(pos: &mut f32, min_pos: f32, max_pos: f32) {
@@ -65,69 +55,6 @@ pub fn filter_state(state: &mut GameState) {
     state.items.truncate(MAX_ITEMS);
 }
 
-fn remove_others(state: &mut GameState) {
-    state.players.truncate(1)
-}
-
-fn speed_score(speed: &Point) -> f32 {
-    speed.len() * SPEED_SCORE_FACTOR / MAX_SPEED
-}
-
-// Make a step to the defined destination and find best possible score
-fn best_score(mut state: GameState, depth: usize) -> f32 {
-    if state.turn > state.max_turns {
-        return 0f32;
-    }
-    if depth > OTHER_PLAYERS_REMOVE_DEPTH {
-        remove_others(&mut state);
-    }
-    if depth == 0 {
-        blow_items(&mut state, -2.);
-    } else if depth == 3 {
-        blow_items(&mut state, 5.);
-        blow_players(&mut state, 2.);
-    } else if depth == 4 {
-        blow_items(&mut state, 5.);
-        blow_players(&mut state, 3.);
-    } else if depth == 5 {
-        blow_items(&mut state, 5.);
-        blow_players(&mut state, 3.);
-    } else if depth >= MAX_DEPTH - 10 {
-        blow_items(&mut state, 15.)
-    }
-
-    let prev_score = state.players[0].score;
-    state = state.next_turn();
-    let me = &state.players[0];
-    let score_increment = me.score - prev_score;
-
-    if depth == MAX_DEPTH {
-        return score_increment as f32;
-    }
-
-    if depth >= STEP_DIRECTIONS.len() {
-        return decay(
-            score_increment,
-            speed_score(&me.speed) + best_score(state, depth + 1),
-        );
-    }
-    
-    let score_to_go_vec: Vec<f32> = (0..STEP_DIRECTIONS[depth])
-        .into_par_iter()
-        .map(|i| {
-            let mut temp_state = state.clone();
-            let angle =
-                angle_by_index_semiforward(i, STEP_DIRECTIONS[depth], 0.9) + angle(&me.speed);
-            temp_state.apply_my_target(Point {
-                x: me.pos.x + ACC * f32::sin(angle),
-                y: me.pos.y + ACC * f32::cos(angle),
-            });
-            speed_score(&temp_state.players[0].speed) + best_score(temp_state, depth + 1)
-        }).collect();
-    let score_to_go = score_to_go_vec.into_iter().reduce(f32::max).unwrap();
-    decay(score_increment, score_to_go)
-}
-
 pub fn angle(point: &Point) -> f32 {
     point.y.atan2(point.x)
 }
@@ -145,40 +72,73 @@ struct Move {
     target: Point,
 }
 
-pub fn best_target(game_state: &GameState) -> Point {
-    let now = Instant::now();
-    let me = &game_state.players[0];
-    let best_move = (0..FIRST_STEP_DIRECTIONS)
-        .into_par_iter()
+// TODO:
+// 1. speed bonus
+// 2. item shrink (1st step) and increase(later, optional)
+// 3. Competitors blow up on precompute.
+// 4. Move score decay to precompute step
+// 5. intersects takes more than 55% of CPU cycles
+fn best_move(me: Player, precompute: &GamePrecompute, items: Vec<bool>, depth: usize) -> Move {
+    if depth >= MAX_DEPTH {
+        return Move {
+            score: 0.0,
+            target: me.target,
+        };
+    } else if depth >= STEP_DIRECTIONS.len() {
+        let (score_inc, new_me, new_items) = precompute.step(me, &items, depth);
+        let Move { score, target } = best_move(new_me, precompute, new_items, depth + 1);
+        return Move {
+            score: decay_f32(score_inc, score),
+            target: target,
+        };
+    }
+
+    let best_move = (0..STEP_DIRECTIONS[depth])
+        // .into_par_iter()
         .map(|i| {
-            let mut temp_state = game_state.clone();
             let angle =
-                angle_by_index_semiforward(i, FIRST_STEP_DIRECTIONS, 0.9) + angle(&me.speed);
+                angle_by_index_semiforward(i, STEP_DIRECTIONS[depth], 0.9) + angle(&me.speed);
             let target = Point {
-                x: me.pos.x + ACC * angle.sin(),
-                y: me.pos.y + ACC * angle.cos(),
+                x: me.pos.x + ACC * f32::sin(angle),
+                y: me.pos.y + ACC * f32::cos(angle),
             };
-            temp_state.apply_my_target(target);
-            let score = best_score(temp_state, 0);
-            Move {
-                score: score,
+            let mut player = me.clone();
+            player.target = target.clone();
+            let (score_inc, player, new_items) = precompute.step(player, &items, depth);
+            let Move { score, .. } = best_move(player, precompute, new_items, depth + 1);
+            return Move {
+                score: decay_f32(score_inc, score),
                 target: target,
-            }
+            };
         })
         .max_by_key(|mv| (mv.score * 1000000f32) as i64)
         .unwrap();
-    let elapsed_time = now.elapsed();
-    let speed = me.speed.len();
-    let angle = (angle(&(best_move.target - me.pos)) - angle(&me.speed)) * 180f32 / PI;
-    log::info!(
-        "score {:.2} ts {}ms, angle: {}, speed: {:.1}",
-        best_move.score,
-        elapsed_time.as_millis(),
-        angle.round(),
-        speed
+    best_move
+}
+
+pub fn best_target(state: &GameState) -> Point {
+    let now = Instant::now();
+
+    let me = &state.players[0];
+    let precompute = GamePrecompute::new(state);
+    let Move { score, target } = best_move(
+        state.players[0].clone(),
+        &precompute,
+        vec![true; state.items.len()],
+        0usize,
     );
 
-    best_move.target
+    let speed = me.speed.len();
+    let angle = (angle(&(target - me.pos)) - angle(&me.speed)) * 180f32 / PI;
+    let elapsed_time = now.elapsed();
+    log::info!(
+        "score {:.2} ts {}ms, angle: {}, speed: {:.1}",
+        score,
+        elapsed_time.as_millis(),
+        angle.round(),
+        speed,
+    );
+    target
 }
 
 #[test]

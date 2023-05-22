@@ -11,6 +11,7 @@ use crate::strategy::{best_target, filter_state};
 use anyhow::Result;
 
 mod connection;
+mod precompute;
 mod strategy;
 
 #[derive(Parser)]
