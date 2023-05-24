@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::str::FromStr;
 
-use crate::consts::{MAX_ACC, MAX_SPEED, PLAYER_RADIUS};
+use crate::consts::{MAX_ACC, MAX_SPEED};
 use crate::point::Point;
 use anyhow::{anyhow, bail};
 
@@ -91,38 +91,18 @@ pub fn next_turn_player_state(player: &mut Player, width: i32, height: i32) {
     clamp(
         &mut player.pos.x,
         &mut player.speed.x,
-        PLAYER_RADIUS,
-        width - PLAYER_RADIUS,
+        player.radius,
+        width - player.radius,
     );
     clamp(
         &mut player.pos.y,
         &mut player.speed.y,
-        PLAYER_RADIUS,
-        height - PLAYER_RADIUS,
+        player.radius,
+        height - player.radius,
     );
 }
 
 impl GameState {
-    pub fn next_turn(mut self) -> GameState {
-        if self.turn > self.max_turns {
-            return self;
-        }
-
-        for player in self.players.iter_mut() {
-            next_turn_player_state(player, self.width, self.height);
-        }
-        for id in 0..self.players.len() {
-            for i in (0..self.items.len()).rev() {
-                if self.items[i].intersects(&self.players[id]) {
-                    self.players[id].score += 1;
-                    self.items.swap_remove(i);
-                }
-            }
-        }
-        self.turn += 1;
-        self
-    }
-
     pub fn to_string(&self) -> String {
         let mut res = String::new();
         res += &format!(
@@ -201,7 +181,7 @@ impl GameState {
                     x: target_x,
                     y: target_y,
                 },
-                radius: r
+                radius: r,
             });
         }
         let num_items = tokens.next("num items")?;
@@ -221,10 +201,6 @@ impl GameState {
         Ok(res)
     }
 
-    pub fn apply_my_target(&mut self, target: Point) {
-        // TODO: validate move
-        self.players[0].target = target;
-    }
 }
 
 #[test]
@@ -234,7 +210,7 @@ fn next_turn_state() {
         speed: Point { x: 10, y: 0 },
         target: Point { x: 150, y: 200 }, // sent by `GO 150 200` command
         score: 0,
-        // radius: 1,
+        radius: 1,
     };
     next_turn_player_state(&mut player, 1000, 1000);
     // acceleration direction is (150, 200) - (100, 100) = (50, 100)

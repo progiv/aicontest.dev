@@ -20,7 +20,7 @@ pub struct GamePrecompute<'state> {
     pub height: i32,
     pub turn: usize,
     pub items: &'state Vec<Item>,
-    turn_item_score: Vec<Vec<f32>>,
+    pub turn_item_score: Vec<Vec<f32>>,
     pub max_turns: usize,
     item_index: ItemIndex<'state>,
 }
@@ -31,18 +31,16 @@ impl<'state> GamePrecompute<'state> {
         state.players.swap_remove(0); // Player Me is not for precompute
         let item_index = ItemIndex::new(&orig_state.items, orig_state.width, orig_state.height);
 
-        let mut turn_item_eaten: Vec<Vec<f32>> = vec![];
-        for _step in 0..MAX_DEPTH {
-            let mut item_eaten: Vec<f32> = vec![0.0; state.items.len()];
+        let mut turn_item_eaten: Vec<Vec<f32>> = vec![vec![0f32; state.items.len()]; MAX_DEPTH];
+        for step in 0..MAX_DEPTH {
             for player in state.players.iter_mut() {
                 next_turn_player_state(player, state.width, state.height);
             }
             for player in state.players.iter() {
                 for item_id in item_index.intersections(player) {
-                    item_eaten[item_id] += 1.0;
+                    turn_item_eaten[step][item_id] += 1f32;
                 }
             }
-            turn_item_eaten.push(item_eaten);
         }
 
         let mut turn_item_score: Vec<Vec<f32>> = vec![vec![1f32; state.items.len()]; MAX_DEPTH];

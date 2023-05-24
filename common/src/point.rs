@@ -4,9 +4,9 @@ pub struct Point {
     pub y: i32,
 }
 
-fn len(x: f32, y: f32) -> f32 {
-    (x * x + y * y).sqrt()
-}
+// fn len(x: f32, y: f32) -> f32 {
+//     (x * x + y * y).sqrt()
+// }
 
 impl Point {
     pub const ZERO: Self = Point { x: 0, y: 0 };
@@ -26,7 +26,7 @@ impl Point {
         }
         let fx = self.x as f32;
         let fy = self.y as f32;
-        let mult = target_len / len(fx, fy);
+        let mult = target_len / self.len();
         Point {
             x: (fx * mult).round() as i32,
             y: (fy * mult).round() as i32,
@@ -67,4 +67,19 @@ impl std::ops::AddAssign for Point {
         self.x += rhs.x;
         self.y += rhs.y;
     }
+}
+
+#[test]
+fn test_point() {
+    let point = Point { x: 1, y: 2 };
+    assert_eq!(point.len2(), 5);
+    assert_eq!(point.len(), 5.0f32.sqrt());
+
+    let long_vec_y = Point { x: 0, y: 10 };
+    assert_eq!(long_vec_y.scale(1f32), Point { x: 0, y: 1 });
+    let long_vec_x = Point { x: -10, y: 0 };
+    assert_eq!(long_vec_x.scale(1f32), Point { x: -1, y: 0 });
+
+    assert_eq!(point - long_vec_x, Point{x: 11, y: 2});
+    assert_eq!(long_vec_x + long_vec_y, Point{x: -10, y: 10});
 }

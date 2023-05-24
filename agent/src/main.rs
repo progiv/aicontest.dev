@@ -42,14 +42,14 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
             }
         }
         match GameState::from_string(&state.join(" ")) {
-            Ok(mut game_state) => {
+            Ok(game_state) => {
                 let turn = game_state.turn;
                 if turn < last_seen_turn {
                     log::info!("New game started. Current turn: {turn}");
                 }
                 last_seen_turn = turn;
 
-                let strategy = Strategy::new(&mut game_state);
+                let strategy = Strategy::new(&game_state);
                 let my_target = strategy.best_target();
                 conn.write(&format!("GO {} {}", my_target.x, my_target.y))?;
             }

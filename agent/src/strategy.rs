@@ -1,5 +1,5 @@
-use game_common::consts::{MAX_ACC, MAX_SPEED, PLAYER_RADIUS};
-use game_common::game_state::{GameState, Player};
+use game_common::consts::{MAX_ACC, MAX_SPEED};
+use game_common::game_state::{GameState, Player};//, next_turn_player_state};
 use game_common::point::Point;
 
 use std::f32::consts::PI;
@@ -13,12 +13,21 @@ use crate::precompute::MAX_DEPTH;
 // const OTHER_PLAYERS_REMOVE_DEPTH: usize = 7;
 // const FIRST_STEP_DIRECTIONS: i32 = 15;
 const STEP_DIRECTIONS: [i32; 7] = [15, 9, 5, 5, 5, 5, 5];
+const STEP_BLOW: [i32; 7] = [-1, 0, 2, 5, 5, 5, 5];
 const ACC: f32 = MAX_ACC * 1000f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.85;
-// const SPEED_SCORE_FACTOR: f32 = 0.05;
+const SPEED_SCORE_FACTOR: f32 = 0.05;
 // TODO Profiler report:
 // next_turn 74%
 // among them next_turn_player_state 32%
+
+fn blow_player(player: &mut Player, inc: i32) {
+    player.radius += inc;
+}
+
+fn speed_bonus(player: &Player) -> f32 {
+    player.speed.len() / MAX_SPEED * SPEED_SCORE_FACTOR
+}
 
 pub struct Strategy<'state> {
     game_state: &'state GameState,
@@ -27,8 +36,7 @@ pub struct Strategy<'state> {
 }
 
 impl<'state> Strategy<'state> {
-    pub fn new(state: &'state mut GameState) -> Self {
-        filter_state(state);
+    pub fn new(state: &'state GameState) -> Self {
         Self {
             begin: Instant::now(),
             precompute: GamePrecompute::new(state),
@@ -37,18 +45,19 @@ impl<'state> Strategy<'state> {
     }
 
     pub fn best_target(&self) -> Point {
-        let me = &self.game_state.players[0];
+        let mut me = self.game_state.players[0].clone();
+        blow_player(&mut me, -1);
         let Move { score, target } =
-            self.best_move(me.clone(), vec![true; self.game_state.items.len()], 0usize);
+            self.best_move(&me, vec![true; self.game_state.items.len()], 0usize);
 
         let speed = me.speed.len();
-        let angle = (angle(&(target - me.pos)) - angle(&me.speed)) * 180f32 / PI;
+        let angle = (angle(&(target - me.pos)) - angle(&me.speed)) / PI;
         let elapsed_time = self.begin.elapsed();
         log::info!(
-            "score {:.2} ts {}ms, angle: {}, speed: {:.1}",
+            "score {:.2} {}ms angle: {:.2}, speed: {:.1}",
             score,
             elapsed_time.as_millis(),
-            angle.round(),
+            angle,
             speed,
         );
         target
@@ -58,9 +67,8 @@ impl<'state> Strategy<'state> {
     // 1. speed bonus
     // 2. item shrink (1st step) and increase(later, optional)
     // 3. Competitors blow up on precompute.
-    // 4. Move score decay to precompute step
-    // 5. intersects takes more than 55% of CPU cycles
-    fn best_move(&self, mut me: Player, mut items: Vec<bool>, depth: usize) -> Move {
+    // 4. Move score decay to precompute step (1.5%)
+    fn best_move(&self, me: &Player, items: Vec<bool>, depth: usize) -> Move {
         if depth >= MAX_DEPTH {
             return Move {
                 score: 0.0,
@@ -68,10 +76,12 @@ impl<'state> Strategy<'state> {
             };
         }
         if depth >= STEP_DIRECTIONS.len() {
-            let score_inc = self.precompute.step(&mut me, &mut items, depth);
-            let Move { score, target } = self.best_move(me, items, depth + 1);
+            let mut new_items = items.clone();
+            let mut new_me = me.clone();
+            let score_inc = self.precompute.step(&mut new_me, &mut new_items, depth);
+            let Move { score, target } = self.best_move(&new_me, new_items, depth + 1);
             return Move {
-                score: decay_f32(score_inc, score),
+                score: speed_bonus(&new_me) + decay_f32(score_inc, score),
                 target: target,
             };
         }
@@ -81,18 +91,19 @@ impl<'state> Strategy<'state> {
             .map(|i| {
                 let angle =
                     angle_by_index_semiforward(i, STEP_DIRECTIONS[depth], 0.9) + angle(&me.speed);
-                let target = Point {
-                    x: me.pos.x + (ACC * f32::sin(angle)) as i32,
-                    y: me.pos.y + (ACC * f32::cos(angle)) as i32,
+                let target = me.pos + Point {
+                    x: (ACC * f32::sin(angle)) as i32,
+                    y: (ACC * f32::cos(angle)) as i32,
                 };
                 let mut player = me.clone();
-                let mut new_items = items.clone();
                 player.target = target;
+                blow_player(&mut player, STEP_BLOW[depth]);
+                let mut new_items = items.clone();
 
                 let score_inc = self.precompute.step(&mut player, &mut new_items, depth);
-                let Move { score, .. } = self.best_move(player, new_items, depth + 1);
+                let Move { score, .. } = self.best_move(&player, new_items, depth + 1);
                 return Move {
-                    score: decay_f32(score_inc, score),
+                    score: speed_bonus(&player) + decay_f32(score_inc, score),
                     target: target,
                 };
             })
@@ -102,39 +113,9 @@ impl<'state> Strategy<'state> {
     }
 }
 
+#[inline]
 fn decay_f32(score_increment: f32, next_steps_score: f32) -> f32 {
     score_increment + next_steps_score * SCORE_DECAY_FACTOR
-}
-
-fn clamp(pos: &mut i32, min_pos: i32, max_pos: i32) {
-    if *pos < min_pos {
-        *pos = 2 * min_pos - *pos;
-    } else if *pos >= max_pos {
-        *pos = 2 * max_pos - *pos;
-    }
-}
-
-fn filter_state(state: &mut GameState) {
-    let my_pos = state.players[0].pos;
-    let radius = PLAYER_RADIUS;
-
-    // point in front of us
-    let mut poi = my_pos + state.players[0].speed.clone().scale(MAX_SPEED * 3f32);
-    clamp(&mut poi.x, radius, state.width - radius);
-    clamp(&mut poi.y, radius, state.height - radius);
-
-    // Remove players but MAX_PLAYERS closest to poi
-    let mut player_ids: Vec<usize> = (1..state.players.len()).collect();
-    const MAX_PLAYERS: usize = 3;
-    player_ids.sort_by_key(|i| (state.players[*i].pos - poi).len2());
-    player_ids[MAX_PLAYERS..].sort();
-    for i in player_ids[MAX_PLAYERS..].iter().rev() {
-        state.players.swap_remove(*i);
-    }
-
-    const MAX_ITEMS: usize = 30;
-    state.items.sort_by_key(|it| (it.pos - poi).len2());
-    state.items.truncate(MAX_ITEMS);
 }
 
 pub fn angle(point: &Point) -> f32 {
