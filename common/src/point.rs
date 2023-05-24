@@ -1,33 +1,39 @@
 #[derive(Copy, Clone, Debug, PartialEq)] // Eq
 pub struct Point {
-    pub x: f32,
-    pub y: f32,
+    pub x: i32,
+    pub y: i32,
+}
+
+fn len(x: f32, y: f32) -> f32 {
+    (x * x + y * y).sqrt()
 }
 
 impl Point {
-    pub const ZERO: Self = Point { x: 0f32, y: 0f32 };
+    pub const ZERO: Self = Point { x: 0, y: 0 };
 
-    pub fn len2(&self) -> f32 {
+    pub fn len2(&self) -> i32 {
         let x = self.x;
         let y = self.y;
         x * x + y * y
     }
     pub fn len(&self) -> f32 {
-        self.len2().sqrt()
+        (self.len2() as f32).sqrt()
     }
 
     pub fn scale(&self, target_len: f32) -> Self {
-        if self.x == 0f32 && self.y == 0f32 {
+        if self.x == 0 && self.y == 0 {
             return *self;
         }
-        let mult = target_len / self.len();
+        let fx = self.x as f32;
+        let fy = self.y as f32;
+        let mult = target_len / len(fx, fy);
         Point {
-            x: self.x * mult,
-            y: self.y * mult,
+            x: (fx * mult).round() as i32,
+            y: (fy * mult).round() as i32,
         }
     }
 
-    pub fn dist2(&self, other: &Self) -> f32 {
+    pub fn dist2(&self, other: &Self) -> i32 {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
         dx * dx + dy * dy

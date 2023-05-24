@@ -14,8 +14,8 @@ use game_common::game_state::{GameState, Player};
 pub const MAX_DEPTH: usize = 16usize;
 
 pub struct GamePrecompute {
-    pub width: f32,
-    pub height: f32,
+    pub width: i32,
+    pub height: i32,
     pub turn: usize,
     pub items: Vec<Item>,
     pub turn_item_score: Vec<Vec<f32>>,
@@ -67,21 +67,15 @@ impl GamePrecompute {
         }
     }
 
-    pub fn step(
-        &self,
-        mut me: Player,
-        items: &Vec<bool>,
-        depth: usize,
-    ) -> (f32, Player, Vec<bool>) {
+    pub fn step(&self, mut me: &mut Player, items: &mut Vec<bool>, depth: usize) -> f32 {
         let mut score: f32 = 0.0;
-        let mut items_upd = items.clone();
         next_turn_player_state(&mut me, self.width, self.height);
         for i in 0..items.len() {
             if items[i] && self.items[i].intersects(&me) {
                 score += self.turn_item_score[depth][i];
-                items_upd[i] = false;
+                items[i] = false;
             }
         }
-        (score, me, items_upd)
+        score
     }
 }
