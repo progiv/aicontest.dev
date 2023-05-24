@@ -11,6 +11,7 @@ pub struct Player {
     pub speed: Point,
     pub target: Point,
     pub score: i32,
+    pub radius: i32,
     // TODO: contact info?
 }
 
@@ -23,7 +24,7 @@ pub struct Item {
 impl Item {
     pub fn intersects(&self, player: &Player) -> bool {
         let dist2 = self.pos.dist2(&player.pos);
-        let max_ok_dist = self.radius;
+        let max_ok_dist = self.radius + player.radius;
         dist2 <= max_ok_dist * max_ok_dist
     }
 }
@@ -139,7 +140,7 @@ impl GameState {
                 score = player.score,
                 x = player.pos.x,
                 y = player.pos.y,
-                r = PLAYER_RADIUS,
+                r = player.radius,
                 vx = player.speed.x,
                 vy = player.speed.y,
                 target_x = player.target.x,
@@ -186,8 +187,7 @@ impl GameState {
             let score = tokens.next("player score")?;
             let x = tokens.next("player x")?;
             let y = tokens.next("player y")?;
-            let r: i32 = tokens.next("player r")?;
-            assert_eq!(r, PLAYER_RADIUS);
+            let r = tokens.next("player r")?;
             let vx = tokens.next("player vx")?;
             let vy = tokens.next("player vy")?;
             let target_x = tokens.next("player target_x")?;
@@ -201,6 +201,7 @@ impl GameState {
                     x: target_x,
                     y: target_y,
                 },
+                radius: r
             });
         }
         let num_items = tokens.next("num items")?;
@@ -210,7 +211,7 @@ impl GameState {
             let r: i32 = tokens.next("item r")?;
             res.items.push(Item {
                 pos: Point { x, y },
-                radius: r + PLAYER_RADIUS,
+                radius: r,
             });
         }
         let end_state: String = tokens.next("END_STATE")?;

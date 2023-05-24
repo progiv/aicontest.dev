@@ -20,18 +20,18 @@ const SCORE_DECAY_FACTOR: f32 = 0.85;
 // next_turn 74%
 // among them next_turn_player_state 32%
 
-pub struct Strategy {
-    game_state: GameState,
-    precompute: GamePrecompute,
+pub struct Strategy<'state> {
+    game_state: &'state GameState,
+    precompute: GamePrecompute<'state>,
     begin: Instant,
 }
 
-impl Strategy {
-    pub fn new(mut state: GameState) -> Self {
-        filter_state(&mut state);
+impl<'state> Strategy<'state> {
+    pub fn new(state: &'state mut GameState) -> Self {
+        filter_state(state);
         Self {
             begin: Instant::now(),
-            precompute: GamePrecompute::new(&state),
+            precompute: GamePrecompute::new(state),
             game_state: state,
         }
     }
