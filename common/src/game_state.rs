@@ -1,9 +1,7 @@
 use std::collections::VecDeque;
 use std::str::FromStr;
 
-use crate::consts::{
-    MAX_ACC, MAX_SPEED
-};
+use crate::consts::{MAX_ACC, MAX_SPEED};
 use crate::point::Point;
 use anyhow::{anyhow, bail};
 
@@ -13,28 +11,28 @@ pub struct Player {
     pub speed: Point,
     pub target: Point,
     pub score: i32,
-    pub radius: f32,
+    pub radius: i32,
     // TODO: contact info?
 }
 
 #[derive(Clone, PartialEq)] // Eq
 pub struct Item {
     pub pos: Point,
-    pub radius: f32,
+    pub radius: i32,
 }
 
 impl Item {
     pub fn intersects(&self, player: &Player) -> bool {
-        let dist = self.pos - player.pos;
+        let dist2 = self.pos.dist2(&player.pos);
         let max_ok_dist = self.radius + player.radius;
-        dist.len2() <= max_ok_dist * max_ok_dist
+        dist2 <= max_ok_dist * max_ok_dist
     }
 }
 
 #[derive(Clone)]
 pub struct GameState {
-    pub width: f32,
-    pub height: f32,
+    pub width: i32,
+    pub height: i32,
     pub turn: usize,
     pub max_turns: usize,
     pub players: Vec<Player>,
@@ -42,28 +40,12 @@ pub struct GameState {
     pub game_id: String,
 }
 
-pub struct GameResults {
-    pub players: Vec<Player>,
-    pub game_id: String,
-}
-
-impl GameResults {
-    pub fn new(state: GameState) -> Self {
-        let mut players = state.players;
-        players.sort_by_key(|player| -player.score);
-        Self {
-            players,
-            game_id: state.game_id,
-        }
-    }
-}
-
-fn clamp(pos: &mut f32, speed: &mut f32, min_pos: f32, max_pos: f32) {
+fn clamp(pos: &mut i32, speed: &mut i32, min_pos: i32, max_pos: i32) {
     if *pos < min_pos {
-        *pos = 2f32 * min_pos - *pos;
+        *pos = 2 * min_pos - *pos;
         *speed = -*speed;
     } else if *pos >= max_pos {
-        *pos = 2f32 * max_pos - *pos;
+        *pos = 2 * max_pos - *pos;
         *speed = -*speed;
     }
 }
@@ -93,10 +75,11 @@ impl TokenReader {
     }
 }
 
-pub fn next_turn_player_state(player: &mut Player, width: f32, height: f32) {
+const MAX_ACC_2: i32 = (MAX_ACC * MAX_ACC) as i32;
+const MAX_SPEED_2: i32 = (MAX_SPEED * MAX_SPEED) as i32;
+
+pub fn next_turn_player_state(player: &mut Player, width: i32, height: i32) {
     let mut acc = player.target - player.pos;
-    const MAX_ACC_2: f32 = MAX_ACC * MAX_ACC;
-    const MAX_SPEED_2: f32 = MAX_SPEED * MAX_SPEED;
     if acc.len2() > MAX_ACC_2 {
         acc = acc.scale(MAX_ACC);
     }
@@ -120,26 +103,6 @@ pub fn next_turn_player_state(player: &mut Player, width: f32, height: f32) {
 }
 
 impl GameState {
-    pub fn next_turn(mut self) -> GameState {
-        if self.turn > self.max_turns {
-            return self;
-        }
-
-        for player in self.players.iter_mut() {
-            next_turn_player_state(player, self.width, self.height);
-        }
-        for id in 0..self.players.len() {
-            for i in (0..self.items.len()).rev() {
-                if self.items[i].intersects(&self.players[id]) {
-                    self.players[id].score += 1;
-                    self.items.swap_remove(i);
-                }
-            }
-        }
-        self.turn += 1;
-        self
-    }
-
     pub fn to_string(&self) -> String {
         let mut res = String::new();
         res += &format!(
@@ -213,19 +176,19 @@ impl GameState {
                 //name,
                 score,
                 pos: Point { x, y },
-                radius: r,
                 speed: Point { x: vx, y: vy },
                 target: Point {
                     x: target_x,
                     y: target_y,
                 },
+                radius: r,
             });
         }
         let num_items = tokens.next("num items")?;
         for _ in 0..num_items {
             let x = tokens.next("item x")?;
             let y = tokens.next("item y")?;
-            let r = tokens.next("item r")?;
+            let r: i32 = tokens.next("item r")?;
             res.items.push(Item {
                 pos: Point { x, y },
                 radius: r,
@@ -237,34 +200,29 @@ impl GameState {
         }
         Ok(res)
     }
-
-    pub fn apply_my_target(&mut self, target: Point) {
-        // TODO: validate move
-        self.players[0].target = target;
-    }
 }
 
 #[test]
 fn next_turn_state() {
     let mut player = Player {
-        pos: Point { x: 100f32, y: 100f32 },
-        speed: Point { x: 10f32, y: 0f32 },
-        target: Point { x: 150f32, y: 200f32 }, // sent by `GO 150 200` command
+        pos: Point { x: 100, y: 100 },
+        speed: Point { x: 10, y: 0 },
+        target: Point { x: 150, y: 200 }, // sent by `GO 150 200` command
         score: 0,
-        radius: 1f32,
+        radius: 1,
     };
-    next_turn_player_state(&mut player, 1000f32, 1000f32);
+    next_turn_player_state(&mut player, 1000, 1000);
     // acceleration direction is (150, 200) - (100, 100) = (50, 100)
     // the length of vector (50, 100) is sqrt(50^2 + 100^2) = 111.8, which is bigger than MAX_ACC=20.0, so real acceleration is:
     // (50, 100) * 20.0 / 111.8 = (8.9, 17.8)
     // after that acceleration is rounded to integers: (9, 18)
     // new speed is (10, 0) + (9, 18) = (19, 18)
 
-    // assert_eq!(player.speed, Point { x: 19f32, y: 18f32 });
-    assert_float_absolute_eq!(player.speed.x, 19f32, 0.5);
-    assert_float_absolute_eq!(player.speed.y, 18f32, 0.5);
+    assert_eq!(player.speed, Point { x: 19, y: 18 });
+    // assert_float_absolute_eq!(player.speed.x, 19f32, 0.5);
+    // assert_float_absolute_eq!(player.speed.y, 18f32, 0.5);
     // new position is (100, 100) + (19, 18) = (119, 118)
-    // assert_eq!(player.pos, Point { x: 119f32, y: 118f32 });
-    assert_float_absolute_eq!(player.pos.x, 119f32, 0.5);
-    assert_float_absolute_eq!(player.pos.y, 118f32, 0.5);
+    assert_eq!(player.pos, Point { x: 119, y: 118 });
+    // assert_float_absolute_eq!(player.pos.x, 119f32, 0.5);
+    // assert_float_absolute_eq!(player.pos.y, 118f32, 0.5);
 }
