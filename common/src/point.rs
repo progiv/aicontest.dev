@@ -80,6 +80,6 @@ fn test_point() {
     let long_vec_x = Point { x: -10, y: 0 };
     assert_eq!(long_vec_x.scale(1f32), Point { x: -1, y: 0 });
 
-    assert_eq!(point - long_vec_x, Point{x: 11, y: 2});
-    assert_eq!(long_vec_x + long_vec_y, Point{x: -10, y: 10});
+    assert_eq!(point - long_vec_x, Point { x: 11, y: 2 });
+    assert_eq!(long_vec_x + long_vec_y, Point { x: -10, y: 10 });
 }

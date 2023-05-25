@@ -200,7 +200,6 @@ impl GameState {
         }
         Ok(res)
     }
-
 }
 
 #[test]

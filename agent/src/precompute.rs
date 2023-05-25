@@ -5,15 +5,11 @@ use game_common::game_state::{GameState, Player};
 
 use game_common::consts::MAX_ITEM_R;
 
-// World
-// 1. Constant, shared:
-// depth -> Item -> score_left
-// Item -> pos
+pub const MAX_DEPTH: usize = 20usize;
 
-// 2. Mutable, cloned
-// Index -> [item_availability]
-
-pub const MAX_DEPTH: usize = 16usize;
+pub fn blow_player(player: &mut Player, inc: i32) {
+    player.radius += inc;
+}
 
 pub struct GamePrecompute<'state> {
     pub width: i32,
@@ -35,6 +31,11 @@ impl<'state> GamePrecompute<'state> {
         for step in 0..MAX_DEPTH {
             for player in state.players.iter_mut() {
                 next_turn_player_state(player, state.width, state.height);
+            }
+            if step > 5 {
+                for player in state.players.iter_mut() {
+                    blow_player(player, 5);
+                }
             }
             for player in state.players.iter() {
                 for item_id in item_index.intersections(player) {

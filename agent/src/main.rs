@@ -10,7 +10,10 @@ use crate::connection::Connection;
 use crate::strategy::Strategy;
 use anyhow::Result;
 
+use crate::past_scores::PastScores;
+
 mod connection;
+mod past_scores;
 mod precompute;
 mod strategy;
 
@@ -31,6 +34,7 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
     conn.write("PLAY")?;
     conn.write(format!("{login} {password}"))?;
     let mut last_seen_turn = usize::MAX;
+    let mut past_scores = PastScores::new();
     loop {
         let mut state = vec![];
         loop {
@@ -48,6 +52,9 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                     log::info!("New game started. Current turn: {turn}");
                 }
                 last_seen_turn = turn;
+
+                past_scores.push(game_state.players[0].score, &game_state.game_id);
+                log::info!("score: {}", past_scores);
 
                 let strategy = Strategy::new(&game_state);
                 let my_target = strategy.best_target();
