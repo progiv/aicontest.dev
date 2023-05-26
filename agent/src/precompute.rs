@@ -34,7 +34,7 @@ impl<'state> GamePrecompute<'state> {
             }
             if step > 5 {
                 for player in state.players.iter_mut() {
-                    blow_player(player, 5);
+                    blow_player(player, 2);
                 }
             }
             for player in state.players.iter() {
@@ -51,7 +51,7 @@ impl<'state> GamePrecompute<'state> {
                     1.0 / (1f32 + turn_item_eaten[step][i])
                 } else if turn_item_eaten[step - 1][i] > 0f32 {
                     // it was probably eaten before, but who knows?
-                    turn_item_score[step - 1][i] / 10.0
+                    turn_item_score[step - 1][i] / 20.0
                 } else {
                     turn_item_score[step - 1][i] / (1f32 + turn_item_eaten[step][i])
                 };

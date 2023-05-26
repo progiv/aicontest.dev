@@ -14,8 +14,8 @@ const STEP_BLOW: [i32; 7] = [-1, 0, 1, 2, 3, 5, 5];
 const ACC: f32 = MAX_ACC * 10f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.92;
 const SPEED_SCORE_FACTOR: f32 = 0.1;
-const BOUNDARY_SIZE: i32 = 750;
-const NON_BOUNDARY_BONUS_FACTOR: f32 = 0.05;
+const BOUNDARY_SIZE: i32 = 500;
+const NON_BOUNDARY_BONUS_FACTOR: f32 = 0.1;
 
 fn speed_bonus(player: &Player) -> f32 {
     player.speed.len() / MAX_SPEED * SPEED_SCORE_FACTOR
@@ -30,11 +30,14 @@ pub struct Strategy<'state> {
 
 #[inline]
 fn in_boundary(position: i32, size: i32) -> f32 {
-    if position > BOUNDARY_SIZE && position < size - BOUNDARY_SIZE {
-        1f32
+    let boundary_distance: i32 = if position < BOUNDARY_SIZE {
+        position
+    } else if position > size - BOUNDARY_SIZE {
+        BOUNDARY_SIZE - (size - position)
     } else {
-        0f32
-    }
+        BOUNDARY_SIZE
+    };
+    boundary_distance as f32 / BOUNDARY_SIZE as f32
 }
 
 impl<'state> Strategy<'state> {

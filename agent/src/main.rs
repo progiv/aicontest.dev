@@ -53,12 +53,12 @@ fn try_one_game(addr: &str, login: &str, password: &str) -> Result<()> {
                 }
                 last_seen_turn = turn;
 
-                past_scores.push(game_state.players[0].score, &game_state.game_id);
-                log::info!("score: {}", past_scores);
-
                 let strategy = Strategy::new(&game_state);
                 let my_target = strategy.best_target();
                 conn.write(&format!("GO {} {}", my_target.x, my_target.y))?;
+
+                past_scores.push(game_state.players[0].score, &game_state.game_id);
+                log::info!("score: {}", past_scores);
             }
             Err(err) => {
                 anyhow::bail!("Error while parsing state: {}", err);
