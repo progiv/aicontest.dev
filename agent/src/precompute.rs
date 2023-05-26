@@ -6,6 +6,7 @@ use game_common::game_state::{GameState, Player};
 use game_common::consts::MAX_ITEM_R;
 
 pub const MAX_DEPTH: usize = 20usize;
+const INDEX_GRID_SIZE: i32 = 500;
 
 pub fn blow_player(player: &mut Player, inc: i32) {
     player.radius += inc;
@@ -32,7 +33,7 @@ impl<'state> GamePrecompute<'state> {
             for player in state.players.iter_mut() {
                 next_turn_player_state(player, state.width, state.height);
             }
-            if step > 5 {
+            if step > 3 {
                 for player in state.players.iter_mut() {
                     blow_player(player, 2);
                 }
@@ -81,8 +82,6 @@ impl<'state> GamePrecompute<'state> {
         score
     }
 }
-
-const INDEX_GRID_SIZE: i32 = 200;
 
 struct ItemIndex<'items> {
     // width: i32,

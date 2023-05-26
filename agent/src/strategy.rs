@@ -1,4 +1,4 @@
-use game_common::consts::{MAX_ACC, MAX_SPEED};
+use game_common::consts::MAX_SPEED;
 use game_common::game_state::{GameState, Player}; //, next_turn_player_state};
 use game_common::point::Point;
 
@@ -11,7 +11,7 @@ use crate::precompute::{blow_player, GamePrecompute, MAX_DEPTH};
 
 const STEP_DIRECTIONS: [i32; 7] = [12, 12, 6, 4, 4, 4, 6];
 const STEP_BLOW: [i32; 7] = [-1, 0, 1, 2, 3, 5, 5];
-const ACC: f32 = MAX_ACC * 10f32; // to make computations more precise after rounding
+const ACC: f32 = MAX_SPEED * (MAX_DEPTH - STEP_DIRECTIONS.len()) as f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.92;
 const SPEED_SCORE_FACTOR: f32 = 0.1;
 const BOUNDARY_SIZE: i32 = 500;
@@ -33,7 +33,7 @@ fn in_boundary(position: i32, size: i32) -> f32 {
     let boundary_distance: i32 = if position < BOUNDARY_SIZE {
         position
     } else if position > size - BOUNDARY_SIZE {
-        BOUNDARY_SIZE - (size - position)
+        size - position
     } else {
         BOUNDARY_SIZE
     };
@@ -56,8 +56,7 @@ impl<'state> Strategy<'state> {
     }
 
     pub fn best_target(&self) -> Point {
-        let mut me = self.game_state.players[0].clone();
-        blow_player(&mut me, -1);
+        let me = self.game_state.players[0].clone();
         let Move { score, target } =
             self.best_move(&me, vec![true; self.game_state.items.len()], 0usize);
 
@@ -84,7 +83,7 @@ impl<'state> Strategy<'state> {
         if depth >= STEP_DIRECTIONS.len() {
             let mut new_items = items.clone();
             let mut new_me = me.clone();
-            blow_player(&mut new_me, 10);
+            blow_player(&mut new_me, 20);
             let score_inc = self.precompute.step(&mut new_me, &mut new_items, depth);
             let Move { score, target } = self.best_move(&new_me, new_items, depth + 1);
             return Move {
