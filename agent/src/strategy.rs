@@ -9,8 +9,8 @@ use rayon::prelude::*;
 
 use crate::precompute::{blow_player, GamePrecompute, MAX_DEPTH};
 
-const STEP_DIRECTIONS: [i32; 7] = [12, 12, 6, 4, 4, 4, 6];
-const STEP_BLOW: [i32; 7] = [-1, 0, 1, 2, 3, 5, 5];
+const STEP_DIRECTIONS: [i32; 7] = [16, 8, 8, 8, 4, 4, 4];
+const STEP_BLOW: [i32; 7] = [0, 0, 0, 2, 3, 5, 5];
 const ACC: f32 = MAX_SPEED * (MAX_DEPTH - STEP_DIRECTIONS.len()) as f32; // to make computations more precise after rounding
 const SCORE_DECAY_FACTOR: f32 = 0.92;
 const SPEED_SCORE_FACTOR: f32 = 0.1;
@@ -83,7 +83,7 @@ impl<'state> Strategy<'state> {
         if depth >= STEP_DIRECTIONS.len() {
             let mut new_items = items.clone();
             let mut new_me = me.clone();
-            blow_player(&mut new_me, 20);
+            blow_player(&mut new_me, 15);
             let score_inc = self.precompute.step(&mut new_me, &mut new_items, depth);
             let Move { score, target } = self.best_move(&new_me, new_items, depth + 1);
             return Move {

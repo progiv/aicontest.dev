@@ -5,7 +5,7 @@ use game_common::game_state::{GameState, Player};
 
 use game_common::consts::MAX_ITEM_R;
 
-pub const MAX_DEPTH: usize = 20usize;
+pub const MAX_DEPTH: usize = 18usize;
 const INDEX_GRID_SIZE: i32 = 500;
 
 pub fn blow_player(player: &mut Player, inc: i32) {
